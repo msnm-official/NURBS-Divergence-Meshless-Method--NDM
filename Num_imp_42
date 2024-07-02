@@ -1,0 +1,634 @@
+% Title: Code for 2D Quarter Disc Heat Transfer Problem: NURBS-Divergence-Meshless (NDM) Method
+
+clc
+clear
+close all
+addpath(genpath('MODULES/'))
+
+% ----------------------
+% Input: 
+% ----------------------
+
+% The parameters
+kx = 1;         % Thermal conductivity in x direction [W/(m.degC)]
+ky = 1;         % Thermal conductivity in y direction [W/(m.degC)]
+Q  = 0;         % Rate of heat generation [W/m^3]
+ql = 60;        % Heat flux for left boundary [W/m^2]
+Tr = 30;        % T along right boundary [degC]
+Tt = 30;        % T along top boundary [degC]
+Tb = 30;        % T along bottom boundary [degC]
+mx = 12;         % Number of elements in x-direction
+my = mx;        % Number of elements in y-direction
+ng = 2;         % Number of Gpoints
+
+% --------------------
+% Prepare nodes & looping 
+% --------------------
+
+% NURBS parameters
+ri = 0.3;
+ro = 0.6;
+[cpw,p,q,xi,eta] = NURBS_Qdisc(ri,ro);
+
+% Nodes coordinates [x y]
+[x,y] = meshgrid(0:1/mx:1,0:1/my:1);
+node_ab = [x(:) y(:)];
+node_ab = sortrows(node_ab,2);
+
+%get the evaluated points in para-space
+[S,C,P,W] = NDM_num(1,1,mx+1,my+1,ng);
+
+%adjust a selected region of nodes
+S2 = []; node_ab2 = [NaN NaN]; nS = [];
+for ON = [  ]
+
+% mx1 = mx*2;
+% my1 = mx1;
+% lim_x = 0.5;
+% 
+% [x,y] = meshgrid(0:1/mx1:lim_x,0:1/my1:1);
+% node_ab2 = [x(:) y(:)];
+% node_ab2 = sortrows(node_ab2,2);
+% for i = 1:size(node_ab)
+%     node_abi = node_ab(i,:);
+%     id1 = (node_ab2(:,1) == node_abi(1) & ...
+%         node_ab2(:,2) == node_abi(2));
+%     node_ab2(id1,:) = [];
+% end
+% node_ab = [node_ab ; node_ab2];
+
+node_ab2 = node_ab;
+S2 = S;
+C2 = C;
+P2 = P;
+W2 = W;
+nS = length(S);
+
+Nnx = [6 6 7 7 6];
+for j = [ 1:length(Nnx) ]
+    nnx = Nnx(j);%mx+3;         % no.of new nodes in x-direction
+    y0 = (j-0.3) * 1/4/my/0.28;   % base line for y-axis
+    Scale = 0.0;       % scale of randomization
+
+    [node_ab2,S2,C2,P2,W2] = Add_vNodes(nnx,y0,Scale,node_ab2,S2,C2,P2,W2,ng);
+end
+
+node_ab = node_ab2;
+% S = S2;
+% C = C2;
+% P = P2;
+% W = W2;
+
+end
+
+% 1st level - include new nodes + new looping
+n1 = []; n2 = [];
+
+for ON = [ ]
+Nnx = zeros(1,mx*2+1);
+Nnx(1:2:end) = mx;
+Nnx(2:2:end) = 2*mx+1;
+node_ab2 = node_ab;
+S2 = S;
+C2 = C;
+P2 = P;
+W2 = W;
+
+for j = [ 1:mx+1 ]
+    nnx = Nnx(j);%mx+3;         % no.of new nodes in x-direction
+    y0 = (j-0.) * 1/4/my/0.75;   % base line for y-axis
+    Scale = 0.0;       % scale of randomization
+
+    [~,S2,C2,P2,W2] = Add_vNodes(nnx,y0,Scale,node_ab2,S2,C2,P2,W2,ng);
+
+end
+%adjust nodes
+ab = linspace(0,1,mx*2+1);
+ab1 = ab; ab1 = ab1(2:2:end-1);
+ab2 = ab;
+
+for i = 1:mx-2
+    a1 = length(node_ab2);
+    node_ab2(a1+1:a1+mx,1) = ab(2*i-1);
+    node_ab2(a1+1:a1+mx,2) = ab1;
+
+    a1 = length(node_ab2);
+    node_ab2(a1+1:a1+mx*2+1,1) = ab(2*i);
+    node_ab2(a1+1:a1+mx*2+1,2) = ab2;
+end
+a1 = length(node_ab2);
+node_ab2(a1+1:a1+mx,1) = ab(2*i+1);
+node_ab2(a1+1:a1+mx,2) = ab1;
+
+node_ab = node_ab2;
+S = S2;
+C = C2;
+P = P2;
+W = W2;
+
+end
+
+%--------------------------------------
+% Plotting on parametric space
+%--------------------------------------
+for ON = [1 ]
+
+    figure
+    axis equal tight
+    axis([0,1,0,1])
+    hold on
+    for i = 1:size(S,1) %elements (sub-area)
+        x1 = min(P(S(i,:),1));
+        x2 = max(P(S(i,:),1));
+        y1 = min(P(S(i,:),2));
+        y2 = max(P(S(i,:),2));
+        X = [x1 x2 x2 x1 x1];
+        Y = [y1 y1 y2 y2 y1];
+        plot(X,Y,'k--')
+        % plot(P(S(i,:),1),P(S(i,:),2),'c:','LineWidth',1)
+
+        x = (x1+x2)/2;
+        y = (y1+y2)/2;
+        text(x,y,num2str(i),'Color',[0.7, 0.8 ,1],'fontsize',10, ...
+            VerticalAlignment="top", HorizontalAlignment="left")
+        % pause(0.1)
+    end
+    for i = []%nS:size(S2,1) %elements (sub-area) - for adjusted nodes
+        x1 = min(P2(S2(i,:),1));
+        x2 = max(P2(S2(i,:),1));
+        y1 = min(P2(S2(i,:),2));
+        y2 = max(P2(S2(i,:),2));
+        X = [x1 x2 x2 x1 x1];
+        Y = [y1 y1 y2 y2 y1];
+        plot(X,Y,'m--','LineWidth',1)
+
+        x = (x1+x2)/2;
+        y = (y1+y2)/2;
+        text(x,y,num2str(i),'Color',[1, 0 ,1],'fontsize',10, ...
+            VerticalAlignment="top", HorizontalAlignment="left")
+        % pause(0.1)
+    end
+    for i = 1:size(P,1) %all integration points
+        x = P(i,1);
+        y = P(i,2);
+        plot(x,y,'bx','markerSize',3,'LineWidth',1)
+        % text(x,y,num2str(i),'Color',[0, 0 ,1],'fontsize',10, ...
+        %     VerticalAlignment="top", HorizontalAlignment="left")
+        % pause(0.1)
+    end
+
+    %Knot spans
+    [xx,yy] = meshgrid(unique(xi),unique(eta));
+    mesh(xx,yy,xx*0,'FaceColor','none','LineWidth',2,'EdgeColor','red')
+
+    % plot(node_ab2(:,1),node_ab2(:,2),'mo','MarkerFaceColor','k')
+    plot(node_ab2(:,1),node_ab2(:,2),'r.','markerSize',30)
+    plot(node_ab(:,1),node_ab(:,2),'k.','markerSize',30)
+    % plot(node_ab(n1,1),node_ab(n1,2),'ro','markerSize',20)
+    % plot(newnode_ab(:,1),newnode_ab(:,2),'ro', ...
+        % 'MarkerFaceColor','r','markerSize',8) %new add nodes
+    hold off
+
+end
+
+%--------------------------------------
+% Plotting on physical space
+%--------------------------------------
+for ON = [ ]
+    
+    Ls =@(s1,s2) linspace(s1,s2,10);
+
+    %calculate for NURBS
+    R1 = NURBS_SF(P,cpw,p,q,xi,eta);
+    P = R1*cpw(:, 1:2);
+
+    figure
+    axis equal tight
+    axis([0,1,0,1])
+    hold on
+    for i = 1:size(S,1) %elements (sub-area)
+
+        x1 = min(P(S(i,:),1));
+        x2 = max(P(S(i,:),1));
+        y1 = min(P(S(i,:),2));
+        y2 = max(P(S(i,:),2));
+        lx1 = Ls(x1,x2);  ly1 = Ls(y1,y1);
+        lx2 = Ls(x2,x2);  ly2 = Ls(y1,y2);
+        lx3 = Ls(x2,x1);  ly3 = Ls(y2,y2);
+        lx4 = Ls(x1,x1);  ly4 = Ls(y2,y1);
+        X = [lx1 lx2 lx3 lx4]';
+        Y = [ly1 ly2 ly3 ly4]';
+
+        plot(X,Y,'k--')
+        Rx = NURBS_SF([X Y],cpw,p,q,xi,eta);
+        XY = Rx*cpw(:, 1:2);
+
+        plot(XY(:,1),XY(:,2),'k--')
+        % plot(P(S(i,:),1),P(S(i,:),2),'c:','LineWidth',1)
+
+        x = (x1+x2)/2;
+        y = (y1+y2)/2;
+        text(x,y,num2str(i),'Color',[0.7, 0.8 ,1],'fontsize',10, ...
+            VerticalAlignment="top", HorizontalAlignment="left")
+        % pause(0.1)
+    end
+    for i = []%size(S,1)+1:size(S2,1) %new additional nodes
+        x1 = min(P2(S2(i,:),1));
+        x2 = max(P2(S2(i,:),1));
+        y1 = min(P2(S2(i,:),2));
+        y2 = max(P2(S2(i,:),2));
+        X = [x1 x2 x2 x1 x1];
+        Y = [y1 y1 y2 y2 y1];
+        plot(X,Y,'r--')
+        % plot(P(S(i,:),1),P(S(i,:),2),'c:','LineWidth',1)
+
+        x = (x1+x2)/2;
+        y = (y1+y2)/2;
+        text(x,y,num2str(i),'Color',[1, 0 ,0],'fontsize',10, ...
+            VerticalAlignment="top", HorizontalAlignment="left")
+        % pause(0.1)
+    end
+    for i = 1:size(P,1) %all integration points
+        x = P(i,1);
+        y = P(i,2);
+        plot(x,y,'bx','markerSize',3,'LineWidth',1)
+        % text(x,y,num2str(i),'Color',[0, 0 ,1],'fontsize',10, ...
+        %     VerticalAlignment="top", HorizontalAlignment="left")
+        % pause(0.1)
+    end
+
+    %Knot spans
+    [xx,yy] = meshgrid(unique(xi),unique(eta));
+    mesh(xx,yy,xx*0,'FaceColor','none','LineWidth',2,'EdgeColor','red')
+
+    % plot(node_ab2(:,1),node_ab2(:,2),'mo','MarkerFaceColor','k')
+    plot(node_ab(:,1),node_ab(:,2),'k.','markerSize',30)
+    % plot(newnode_ab(:,1),newnode_ab(:,2),'ro', ...
+        % 'MarkerFaceColor','r','markerSize',8) %new add nodes
+    hold off
+
+end
+
+%%
+
+% --------------------
+% Calculate the local matrix and force vector
+% --------------------
+
+K = zeros(size(S,1),size(S,1));
+F = zeros(size(S,1),1);
+
+hh = [1/mx/1 1/mx/1];
+N = zeros(length(P),length(node_ab));
+dNdx = N;
+dNdy = N;
+Xi = [0 1];%unique(xi);
+Eta = [0 1];%unique(eta);
+for i = 1:length(Xi)-1
+for j = 1:length(Eta)-1
+
+% check nodes in a knot span
+id1 = find(...
+    node_ab(:,1)>=Xi(i) & node_ab(:,1)<=Xi(i+1) & ...
+    node_ab(:,2)>=Eta(j) & node_ab(:,2)<=Eta(j+1) );
+% AddPlot(node_ab(id1,:),'y*')
+
+% check Gpoints in a knot span
+id2 = find(...
+    P(:,1)>=Xi(i) & P(:,1)<=Xi(i+1) & ...
+    P(:,2)>=Eta(j) & P(:,2)<=Eta(j+1) );
+% AddPlot(P(id2,:),'mo')
+
+%function to calculate dNx, dNf
+% h = 2/mx;
+% ac = 0.3;
+% dc = h;
+h = max([1/mx 1/my]);
+ac = 1.0;
+dc = 1*h;
+h = hh(i);
+rc = 4*h;
+% [N,dNdx,dNdy] = PIM_SF(P,node_ab,m,n);
+% [N1,dNdx1,dNdy1] = RPIM_SF(P(id2,:),node_ab(id1,:),ac,dc);
+[N1,dNdx1,dNdy1] = EFG_SF(P(id2,:),node_ab(id1,:),rc);
+% [N,dNdx,dNdy] = FEMLG_SF(P,node_ab);
+
+N(id2,id1) = N(id2,id1) + N1;
+dNdx(id2,id1) = dNdx(id2,id1) + dNdx1;
+dNdy(id2,id1) = dNdy(id2,id1) + dNdy1;
+
+end
+end
+% [N,dNdx,dNdy] = EFG_SF(P,node_ab,rc);
+
+
+%calculate for G1 & G2 matrix
+[Ri,dRds,dRdn] = NURBS_SF(P,cpw,p,q,xi,eta);
+dxds = dRds*cpw(:,1);
+dxdn = dRdn*cpw(:,1);
+dyds = dRds*cpw(:,2);
+dydn = dRdn*cpw(:,2);
+detJ = abs(dxds.*dydn - dxdn.*dyds);
+
+G11 = (dxdn.^2 + dydn.^2) ./ detJ;
+G12 = -(dxds.*dxdn + dyds.*dydn) ./ detJ;
+G22 = (dxds.^2 + dyds.^2) ./ detJ;
+
+G1 = [-G12 G11 G12 -G11];
+G2 = [-G22 G12 G22 -G12];
+
+%evaluated dNx & dNy at P
+dNx = kx*dNdx;
+dNy = ky*dNdy;
+
+% K = zeros(size(S,1),size(dNdx,2));
+% F = zeros(size(S,1),1);
+for i = 1:size(S,1) %loop for sub-area
+    s = S(i,:);     %related sides for loop i
+
+    % Generate G1 & G2 matrix for a loop 
+    g1 = []; g2 = [];
+    for j = 1:4
+        ind = ng*(j-1)+1;
+        sj = s(ind:ind+ng-1);
+        g1 = cat(1,g1,G1(sj,j));
+        g2 = cat(1,g2,G2(sj,j));
+    end
+
+    % Calculate K matrix
+    for j = 1:size(dNdx,2) %loop over SF
+        
+        % combine all derivaties for each side
+        dNxi = sum(reshape(W(s,1).*dNx(s,j).*g1,ng,[]),1)';
+        dNyi = sum(reshape(W(s,1).*dNy(s,j).*g2,ng,[]),1)';
+        
+        % remove boundaries term
+        dNxi = dNxi.*C(i,:)';
+        dNyi = dNyi.*C(i,:)';
+        
+        % sum up & put in k matrix
+        dN = sum(dNxi) + sum(dNyi);
+        K(i,j) = dN;
+    end
+    
+end
+figure(); spy(K,'b.')
+
+
+%%
+
+% --------------------
+% Additional nodes - local matrix and force vector
+% --------------------
+
+for ON = [ ]
+
+K2 = zeros(size(S2,1),size(S2,1));
+F2 = zeros(size(S2,1),1);
+
+hh = [1/mx/2 1/mx/2];
+N = zeros(length(P2),length(node_ab2));
+dNdx = N;
+dNdy = N;
+Xi = [0 1];%unique(xi);
+Eta = [0 1];%unique(eta);
+for i = 1:length(Xi)-1
+for j = 1:length(Eta)-1
+
+% check nodes in a knot span
+id1 = find(...
+    node_ab2(:,1)>=Xi(i) & node_ab2(:,1)<=Xi(i+1) & ...
+    node_ab2(:,2)>=Eta(j) & node_ab2(:,2)<=Eta(j+1) );
+AddPlot(node_ab2(id1,:),'mp')
+
+% check Gpoints in a knot span
+id2 = find(...
+    P2(:,1)>=Xi(i) & P2(:,1)<=Xi(i+1) & ...
+    P2(:,2)>=Eta(j) & P2(:,2)<=Eta(j+1) );
+AddPlot(P2(id2,:),'g*')
+
+%function to calculate dNx, dNf
+% h = 2/mx;
+% ac = 0.3;
+% dc = h;
+h = max([1/mx 1/my]);
+ac = 1.0;
+dc = 1*h;
+h = hh(i);
+rc = 4*h;
+% [N,dNdx,dNdy] = PIM_SF(P,node_ab,m,n);
+% [N1,dNdx1,dNdy1] = RPIM_SF(P2(id2,:),node_ab2(id1,:),ac,dc);
+[N1,dNdx1,dNdy1] = EFG_SF(P2(id2,:),node_ab2(id1,:),rc);
+% [N,dNdx,dNdy] = FEMLG_SF(P,node_ab);
+
+N(id2,id1) = N(id2,id1) + N1;
+dNdx(id2,id1) = dNdx(id2,id1) + dNdx1;
+dNdy(id2,id1) = dNdy(id2,id1) + dNdy1;
+
+end
+end
+% [N,dNdx,dNdy] = EFG_SF(P,node_ab,rc);
+
+
+%calculate for G1 & G2 matrix
+[Ri,dRds,dRdn] = NURBS_SF(P2,cpw,p,q,xi,eta);
+dxds = dRds*cpw(:,1);
+dxdn = dRdn*cpw(:,1);
+dyds = dRds*cpw(:,2);
+dydn = dRdn*cpw(:,2);
+detJ = abs(dxds.*dydn - dxdn.*dyds);
+
+G11 = (dxdn.^2 + dydn.^2) ./ detJ;
+G12 = -(dxds.*dxdn + dyds.*dydn) ./ detJ;
+G22 = (dxds.^2 + dyds.^2) ./ detJ;
+
+G1 = [-G12 G11 G12 -G11];
+G2 = [-G22 G12 G22 -G12];
+
+%evaluated dNx & dNy at P
+dNx = kx*dNdx;
+dNy = ky*dNdy;
+
+% K = zeros(size(S,1),size(dNdx,2));
+% F = zeros(size(S,1),1);
+for i = 1:size(S2,1) %loop for sub-area
+    s = S2(i,:);     %related sides for loop i
+
+    % Generate G1 & G2 matrix for a loop 
+    g1 = []; g2 = [];
+    for j = 1:4
+        ind = ng*(j-1)+1;
+        sj = s(ind:ind+ng-1);
+        g1 = cat(1,g1,G1(sj,j));
+        g2 = cat(1,g2,G2(sj,j));
+    end
+
+    % Calculate K matrix
+    for j = 1:size(dNdx,2) %loop over SF
+        
+        % combine all derivaties for each side
+        dNxi = sum(reshape(W2(s,1).*dNx(s,j).*g1,ng,[]),1)';
+        dNyi = sum(reshape(W2(s,1).*dNy(s,j).*g2,ng,[]),1)';
+        
+        % remove boundaries term
+        dNxi = dNxi.*C2(i,:)';
+        dNyi = dNyi.*C2(i,:)';
+        
+        % sum up & put in k matrix
+        dN = sum(dNxi) + sum(dNyi);
+        K2(i,j) = dN;
+    end
+    
+end
+
+figure; hold on 
+spy(K,'b.')
+spy(K2,'ro')
+hold off
+
+%adjust size K & F to merge with K2 & F2
+K(size(S2,1),size(S2,1)) = 0;
+F(size(S2,1),1) = 0;
+
+K = K + K2; 
+F = F + F2;
+node_ab = node_ab2;
+S = S2;
+C = C2;
+P = P2;
+W = W2;
+
+end
+
+%%
+% ----------------------
+% Domain heat gen (force vector)
+% ----------------------
+Area = 0;
+%figure, axis equal
+for i = 1:size(S,1) %loop for sub-area
+    s = S(i,:);         %related sides for loop i
+    ps = P(s,:);        %get the points
+    
+    x1 = min(ps(:,1));
+    x2 = max(ps(:,1));
+    y1 = min(ps(:,2));
+    y2 = max(ps(:,2));
+
+    %[xg,wg] = Gauss_Integration(P(s,:),3,2);
+    [xg,wg] = Gauss_Int([x1 x2],[y1 y2],3);
+    [Rg,dRx1,dRx2] = NURBS_SF(xg,cpw,p,q,xi,eta);
+    xg2 = Rg*cpw(:,1:2);
+    
+    dx1 = dRx1*cpw(:,1);
+    dx2 = dRx2*cpw(:,1);
+    dy1 = dRx1*cpw(:,2);
+    dy2 = dRx2*cpw(:,2); 
+    detJ2 = abs(dx1.*dy2 - dx2.*dy1);
+    
+    Ac = sum(wg.*detJ2);
+    Area = Area + Ac; %checking for area
+    F(i) = F(i) - Ac*Q;
+    
+%    hold on 
+%    plot(xg(:,1),xg(:,2),'b+')
+%    plot(xg2(:,1),xg2(:,2),'rx')
+%    text(xg2(5,1),xg2(5,2),num2str(Ac*Q),...
+%        'Color',[0, 0 ,1],'FontSize',20, ...
+%        "horizontalalignment", "center")
+%    hold off
+%    pause(0.1)
+end
+
+%%
+% ----------------------
+% Impose boundary conditions (Neumann)
+% ----------------------
+
+Line = 0;
+%figure, axis equal
+for i = 1:size(S,1) %loop for sub-area
+    s = S(i,:);     %related sides for loop i
+
+    bb = P(s,1)==0;   %index for bottom boundary points
+    dRb = dRdn(s,:);  %respective derivative SF for bottom boundary 
+    detJi = sqrt((dRb*cpw(:,1)).^2+(dRb*cpw(:,2)).^2);
+    F(i,1) = F(i,1) - sum(W(s,1).*bb.*detJi*ql);
+
+    Line = Line + sum(W(s,1).*bb.*detJi); %checking for length
+end
+
+% ----------------------
+% Impose boundary conditions (Drichlet)
+% ----------------------
+
+% Nodes boundary conditions [Condition(1-boundary node, 0-node to be solved)  Value]
+Rxy = NURBS_SF(node_ab,cpw,p,q,xi,eta);
+node_xy = Rxy*cpw(:,1:2);
+node_bc = zeros(length(node_ab),2);
+% node_bc(node_ab(:,1)==0,1) = 1;
+% node_bc(node_ab(:,1)==0,2) = Tl;
+node_bc(node_ab(:,1)==1,1) = 1;
+node_bc(node_ab(:,1)==1,2) = Tr;
+node_bc(node_ab(:,2)==0,1) = 1;
+node_bc(node_ab(:,2)==0,2) = Tb;
+node_bc(node_ab(:,2)==1,1) = 1;
+node_bc(node_ab(:,2)==1,2) = Tt;
+
+for i = 1:size(node_ab,1)
+   
+    % Check if node condition is boundary
+    if node_bc(i,1) > 0
+       
+        % Modify global matrix and force vector 
+        % to impose boundary condition
+        K(i,:) = 0;
+        K(i,i) = 1;
+        F(i)   = node_bc(i,2);
+        
+    end
+end
+
+
+% ----------------------
+% Solve simultaneous equations 
+% ----------------------
+T = K\F;
+T0 = T(1:(mx+1)*(my+1));
+T1 = reshape(T0,mx+1,[])'
+fprintf('max T = %.3f degC\n',max(T))
+
+
+%%
+% --------------------
+% Plot the result
+% --------------------
+
+% Plot 2D contour of the result
+elem_node = [];
+for i = 1:my
+    for j = 1:mx
+        elem_i = [[j j+1]  [j+1 j]+(mx+1)] + (mx+1)*(i-1);
+        elem_node = cat(1,elem_node,elem_i);
+    end
+end
+
+figure('color', 'w', 'Name', 'Plot of Temperature Distribution');
+axis equal;
+patch('Faces', elem_node, ...
+      'Vertices', node_xy, ...
+      'FaceVertexCData', T, ...
+      'EdgeColor','none', ...
+      'FaceColor','interp');
+patch('Faces', elem_node, ...
+      'Vertices', node_xy, ...
+      'LineStyle', ':', ...
+      'EdgeColor','black', ...
+      'FaceColor','none');
+xlabel('x [m]')
+ylabel('y [m]')
+colormap('jet')
+colorbar
+% axis off padded
+clim([30 40])
+% colorbar off
