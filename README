@@ -25,3 +25,10 @@ termed the NURBS-Divergence-Meshless (NDM) method, differs from previous MFVs in
 i. Utilization of NURBS for both geometric exactness and simplified handling of normal directions and spatial differential terms.
 ii. Implementation of Gauss numerical integration beyond the one-point Gaussian rule.
 iii. Insensitivity to overlapping integration cells.
+
+Here we present 3 examples of it application:
+Ex1) Fan Blade Problem
+Ex2) Quarter-annular Disc
+Ex3) Cellular Beam
+
+
