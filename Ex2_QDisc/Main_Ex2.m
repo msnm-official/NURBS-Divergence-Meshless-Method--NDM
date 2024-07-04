@@ -84,8 +84,6 @@ Plot('Node',node_xy,'k.',25)
 
 % Get shape function to calculate dNx, dNf
 h = max([1/mx 1/my]);
-ac = 1;
-dc = h;
 rc = 4*h;
 [N,dNdx,dNdy] = MLS_SF(P,node_ab,rc);
 
@@ -144,7 +142,6 @@ end
 % Impose boundary conditions (Neumann)
 % ----------------------
 
-Line = 0;
 for i = 1:size(S,1) %loop for sub-area
     s = S(i,:);     %related sides for loop i
     disp([i s])
