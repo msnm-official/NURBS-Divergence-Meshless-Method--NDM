@@ -21,7 +21,7 @@ Tt = 30;        % T along top boundary [degC]
 Tb = 30;        % T along bottom boundary [degC]
 mx = 8;         % Number of division in x-direction
 my = 8;         % Number of division in y-direction
-ng = 1;         % Number of Gpoints
+ng = 3;         % Number of Gpoints
 
 % --------------------
 % Prepare nodes & looping 
